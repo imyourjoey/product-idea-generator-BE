@@ -45,4 +45,12 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    /**
+     * Get the brands for the user.
+     */
+    public function brands()
+    {
+        return $this->hasMany(Brand::class);
+    }
 }

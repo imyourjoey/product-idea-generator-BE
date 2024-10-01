@@ -1,14 +1,15 @@
 <?php
-   
+
 namespace App\Http\Controllers\API;
-   
+
 use Illuminate\Http\Request;
 use App\Http\Controllers\API\BaseController as BaseController;
 use App\Models\Product;
+use App\Models\Brand;
 use Validator;
 use App\Http\Resources\ProductResource;
 use Illuminate\Http\JsonResponse;
-   
+
 class ProductController extends BaseController
 {
     /**
@@ -16,12 +17,41 @@ class ProductController extends BaseController
      *
      * @return \Illuminate\Http\Response
      */
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $products = Product::all();
+        // Get brand_id from the request body
+        $brandId = $request->input('brand_id');
+        
+        if ($brandId) {
+            // Retrieve the brand with its products
+            $brand = Brand::with('products')->find($brandId);
     
-        return $this->sendResponse(ProductResource::collection($products), 'Products retrieved successfully.');
+            // Return error if brand not found
+            if (!$brand) {
+                return $this->sendError('Brand not found.');
+            }
+    
+            // Response with brand details and products
+            return $this->sendResponse([
+                'brand' => [
+                    'brand_id' => $brand->id,
+                    'name' => $brand->name,
+                    'description' => $brand->description,
+                ],
+                'products' => ProductResource::collection($brand->products)
+            ], 'Products retrieved successfully.');
+    
+        } else {
+            // Optionally, return all products without filtering by brand
+            $products = Product::with('brand')->get();
+    
+            return $this->sendResponse([
+                'products' => ProductResource::collection($products)
+            ], 'All products retrieved successfully.');
+        }
     }
+    
+
     /**
      * Store a newly created resource in storage.
      *
@@ -31,21 +61,22 @@ class ProductController extends BaseController
     public function store(Request $request): JsonResponse
     {
         $input = $request->all();
-   
+
         $validator = Validator::make($input, [
             'name' => 'required',
-            'detail' => 'required'
+            'description' => 'required', // Updated field name
+            'brand_id' => 'nullable|exists:brands,id' // Added brand_id validation
         ]);
-   
-        if($validator->fails()){
-            return $this->sendError('Validation Error.', $validator->errors());       
+
+        if ($validator->fails()) {
+            return $this->sendError('Validation Error.', $validator->errors());
         }
-   
+
         $product = Product::create($input);
-   
+
         return $this->sendResponse(new ProductResource($product), 'Product created successfully.');
-    } 
-   
+    }
+
     /**
      * Display the specified resource.
      *
@@ -55,51 +86,51 @@ class ProductController extends BaseController
     public function show($id): JsonResponse
     {
         $product = Product::find($id);
-  
+
         if (is_null($product)) {
             return $this->sendError('Product not found.');
         }
-   
+
         return $this->sendResponse(new ProductResource($product), 'Product retrieved successfully.');
     }
-    
+
     /**
      * Update the specified resource in storage.
      *
      * @param  \Illuminate\Http\Request  $request
-     * @param  int  $id
+     * @param  Product  $product
      * @return \Illuminate\Http\Response
      */
     public function update(Request $request, Product $product): JsonResponse
     {
         $input = $request->all();
-   
+
         $validator = Validator::make($input, [
             'name' => 'required',
-            'detail' => 'required'
+            'description' => 'required', // Updated field name 
         ]);
-   
-        if($validator->fails()){
-            return $this->sendError('Validation Error.', $validator->errors());       
+
+        if ($validator->fails()) {
+            return $this->sendError('Validation Error.', $validator->errors());
         }
-   
+
         $product->name = $input['name'];
-        $product->detail = $input['detail'];
+        $product->description = $input['description']; 
         $product->save();
-   
+
         return $this->sendResponse(new ProductResource($product), 'Product updated successfully.');
     }
-   
+
     /**
      * Remove the specified resource from storage.
      *
-     * @param  int  $id
+     * @param  Product  $product
      * @return \Illuminate\Http\Response
      */
     public function destroy(Product $product): JsonResponse
     {
         $product->delete();
-   
+
         return $this->sendResponse([], 'Product deleted successfully.');
     }
 }
