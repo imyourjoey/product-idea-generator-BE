@@ -5,6 +5,9 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use App\Models\GeneratedProductIdea;
+use App\Models\AiMessageLog;
+use Illuminate\Support\Facades\Auth;
 
 class PromptController extends Controller
 {
@@ -17,13 +20,13 @@ class PromptController extends Controller
             "userPrompt" => "required|string",
             "brandProducts" => "required",
         ]);
-
+    
         // Get parameters from the request
         $useBrandProfile = $request->input("useBrandProfile");
         $selectedProductCategory = $request->input("selectedProductCategory");
         $userPrompt = $request->input("userPrompt");
         $brandProducts = $request->input("brandProducts");
-
+    
         // Craft the final prompt for full-length response
         $fullLengthPrompt = $this->craftPrompt(
             $useBrandProfile,
@@ -31,344 +34,92 @@ class PromptController extends Controller
             $userPrompt,
             $brandProducts
         );
-
+    
         // Prepare the request body for Groq AI
         $groqApiKey = env("GROQ_API_KEY");
-        $groqRequestBody = [
+        $model = "llama3-8b-8192";
+    
+        try {
+            // First request: Send full-length response request
+            $fullContent = $this->makeGroqRequest($fullLengthPrompt, $groqApiKey, $model);
+    
+            // If first request was successful, proceed with further requests
+            if ($fullContent) {
+                $shortContent = $this->makeGroqRequest("{$fullContent}. Based on the previous content, describe the new proposed product's appearance, name, and key characteristics in a concise 6-7 word sentence, excluding any filler words.", $groqApiKey, $model);
+                $targetMarketContent = $this->makeGroqRequest("{$fullContent}. Based on the full proposal, describe the ideal target market for this product in a detailed but concise manner. Just a 1-5 word phrase (e.g., tech-savvy people, elderly). don't give filler text, don't need to be a sentence", $groqApiKey, $model);
+                $productNameContent = $this->makeGroqRequest("{$fullContent}. based on the previous content, find the product name. Return only the name.", $groqApiKey, $model);
+                $UspContent = $this->makeGroqRequest("{$fullContent}. Provide unique selling point of the product, no filler sentences, straight to the point, do not prepend Unique Selling Point: in front", $groqApiKey, $model);
+                $EstimatedCostContent = $this->makeGroqRequest("{$fullContent}. Provide a estimated manufacturing cost per unit in USD. just give the number, with 2 decimal places, dont give currency symbol", $groqApiKey, $model);
+                $estimatedSellingPriceContent = $this->makeGroqRequest("this is the estimated manufacturing cost per unit {$EstimatedCostContent}. Provide a estimated selling price per unit in USD. just give the number, with 2 decimal places. make sure the selling price is higher than the manufacturing cost price, very very important, for profit", $groqApiKey, $model);
+                $unitsSoldPerMonthContent = $this->makeGroqRequest("{$fullContent}. this is the estimated cost per unit {$EstimatedCostContent}. this is the estimated selling price {$estimatedSellingPriceContent}. Provide a estimated units sold per month, just give me the number in your response, don't give anything else, don't need comma separator", $groqApiKey, $model);
+                $descriptionContent = $this->makeGroqRequest("{$fullContent}. based on the content before this sentence write a description about the proposed product, about 100 words, dont add formatting write in a paragraph, keep as much information as possible from the previous content", $groqApiKey, $model);
+
+
+            // Create a new GeneratedProductIdea entry
+            $productIdea = GeneratedProductIdea::create([
+                // 'full_response' => $fullContent,
+                // 'short_response' => $shortContent,
+                'category' => $request->input("selectedProductCategory"),
+                'target_market' => $targetMarketContent,
+                'product_name' => $productNameContent,
+                'unique_selling_point' => $UspContent,
+                'estimated_cost' => $EstimatedCostContent,
+                'estimated_selling_price' => $estimatedSellingPriceContent,
+                'estimated_units_sold_per_month' => $unitsSoldPerMonthContent,
+                'description' => $descriptionContent,
+                'feasibility_score' => rand(6, 10),
+                'user_id' => Auth::id(),
+                'brand_id' => $request->input("brandProducts.brand.brand_id"),
+            ]);
+                
+
+                // Return all responses
+                return response()->json([
+                    "fullResponse" => $fullContent,
+                    "shortResponse" => $shortContent,
+                    "targetMarket" => $targetMarketContent,
+                    "productName" => $productNameContent,
+                    "uniqueSellingPoint" => $UspContent,
+                    "estimatedCost" => $EstimatedCostContent,
+                    "estimatedSellingPrice" => $estimatedSellingPriceContent,
+                    "estimatedUnitsSoldPerMonth" => $unitsSoldPerMonthContent,
+                    "description" => $descriptionContent,
+                ], 200);
+            } else {
+                return response()->json(["message" => "Error processing the full response"], 500);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                "message" => "Error processing the prompt: " . $e->getMessage(),
+            ], 500);
+        }
+    }
+    
+    private function makeGroqRequest($promptContent, $groqApiKey, $model)
+    {
+        $response = Http::withHeaders([
+            "Authorization" => "Bearer {$groqApiKey}",
+            "Content-Type" => "application/json",
+        ])->post("https://api.groq.com/openai/v1/chat/completions", [
             "messages" => [
                 [
                     "role" => "user",
-                    "content" => $fullLengthPrompt,
+                    "content" => $promptContent,
                 ],
             ],
-            "model" => "llama3-8b-8192",
-        ];
-
-        try {
-            // First request: Send full-length response request
-            $fullLengthResponse = Http::withHeaders([
-                "Authorization" => "Bearer {$groqApiKey}",
-                "Content-Type" => "application/json",
-            ])->post(
-                "https://api.groq.com/openai/v1/chat/completions",
-                $groqRequestBody
-            );
-
-            // Check if the first response was successful
-            if ($fullLengthResponse->successful()) {
-                $fullContent = $fullLengthResponse->json()["choices"][0][
-                    "message"
-                ]["content"];
-
-                // Second request: Ask Groq to summarize the full response into one concise sentence
-                $shortRequestBody = [
-                    "messages" => [
-                        [
-                            "role" => "user",
-                            "content" => "{$fullContent}. Based on the previous content, describe the new proposed product's appearance, name, and key characteristics in a concise 6-7 word sentence, excluding any filler words.",
-                        ],
-                    ],
-                    "model" => "llama3-8b-8192",
-                ];
-
-                $shortResponse = Http::withHeaders([
-                    "Authorization" => "Bearer {$groqApiKey}",
-                    "Content-Type" => "application/json",
-                ])->post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    $shortRequestBody
-                );
-
-                // Check for success on the second request
-                if ($shortResponse->successful()) {
-                    $shortContent = $shortResponse->json()["choices"][0][
-                        "message"
-                    ]["content"];
-
-                    // Third request: Ask Groq for the target market
-                    $targetMarketRequestBody = [
-                        "messages" => [
-                            [
-                                "role" => "user",
-                                "content" => "{$fullContent}. Based on the full proposal, describe the ideal target market for this product in a detailed but concise manner. Just a 1-5 word phrase (e.g., tech-savvy people, elderly). don't give filler text, don't need to be a sentence",
-                            ],
-                        ],
-                        "model" => "llama3-8b-8192",
-                    ];
-
-                    $targetMarketResponse = Http::withHeaders([
-                        "Authorization" => "Bearer {$groqApiKey}",
-                        "Content-Type" => "application/json",
-                    ])->post(
-                        "https://api.groq.com/openai/v1/chat/completions",
-                        $targetMarketRequestBody
-                    );
-
-                    // Check for success on the third request
-                    if ($targetMarketResponse->successful()) {
-                        $targetMarketContent = $targetMarketResponse->json()[
-                            "choices"
-                        ][0]["message"]["content"];
-
-                        // Fourth request: Ask Groq for a product name
-                        $productNameRequestBody = [
-                            "messages" => [
-                                [
-                                    "role" => "user",
-                                    "content" => "{$fullContent}. based on the previous content, find the product name. Return only the name.",
-                                ],
-                            ],
-                            "model" => "llama3-8b-8192",
-                        ];
-
-                        $productNameResponse = Http::withHeaders([
-                            "Authorization" => "Bearer {$groqApiKey}",
-                            "Content-Type" => "application/json",
-                        ])->post(
-                            "https://api.groq.com/openai/v1/chat/completions",
-                            $productNameRequestBody
-                        );
-
-                        // Check for success on the fourth request
-                        if ($productNameResponse->successful()) {
-                            $productNameContent = $productNameResponse->json()[
-                                "choices"
-                            ][0]["message"]["content"];
-
-                            // FIFTH request: Ask Groq for a USP
-                            $UspRequestBody = [
-                                "messages" => [
-                                    [
-                                        "role" => "user",
-                                        "content" => "{$fullContent}. Provide unique selling point of the product, no filler sentences, straight to the point, do not prepend Unique Selling Point: in front", 
-                                    ],
-                                ],
-                                "model" => "llama3-8b-8192",
-                            ];
-
-                            $UspResponse = Http::withHeaders([
-                                "Authorization" => "Bearer {$groqApiKey}",
-                                "Content-Type" => "application/json",
-                            ])->post(
-                                "https://api.groq.com/openai/v1/chat/completions",
-                                $UspRequestBody
-                            );
-
-                            // Check for success on the fourth request
-                            if ($UspResponse->successful()) {
-                                $UspContent = $UspResponse->json()[
-                                    "choices"
-                                ][0]["message"]["content"];
-
-                                // Sixth request: Ask Groq for a estimated cost
-                                $EstimatedCostRequestBody = [
-                                    "messages" => [
-                                        [
-                                            "role" => "user",
-                                            "content" => "{$fullContent}. Provide a estimated manufacturing cost per unit in USD. just give the number, with 2 decimal places, dont give currency symbol",
-                                        ],
-                                    ],
-                                    "model" => "llama3-8b-8192",
-                                ];
-
-                                $EstimatedCostResponse = Http::withHeaders([
-                                    "Authorization" => "Bearer {$groqApiKey}",
-                                    "Content-Type" => "application/json",
-                                ])->post(
-                                    "https://api.groq.com/openai/v1/chat/completions",
-                                    $EstimatedCostRequestBody
-                                );
-
-                                // Check for success on the sixth request
-                                if ($EstimatedCostResponse->successful()) {
-                                    $EstimatedCostContent = $EstimatedCostResponse->json()[
-                                        "choices"
-                                    ][0]["message"]["content"];
-
-                                    // Seventh request: Ask Groq for a selling prince
-                                    $estimatedSellingPriceRequestBody = [
-                                        "messages" => [
-                                            [
-                                                "role" => "user",
-                                                "content" => "this is the estimated manufacturing cost per unit {$EstimatedCostContent}. Provide a estimated selling price per unit in USD. just give the number, with 2 decimal places. make sure the selling price is higher than the manufacturing cost price, very very important, for profit",
-                                            ],
-                                        ],
-                                        "model" => "llama3-8b-8192",
-                                    ];
-
-                                    $estimatedSellingPriceResponse = Http::withHeaders(
-                                        [
-                                            "Authorization" => "Bearer {$groqApiKey}",
-                                            "Content-Type" =>
-                                                "application/json",
-                                        ]
-                                    )->post(
-                                        "https://api.groq.com/openai/v1/chat/completions",
-                                        $EstimatedCostRequestBody
-                                    );
-
-                                    // Check for success on the fourth request
-                                    if (
-                                        $estimatedSellingPriceResponse->successful()
-                                    ) {
-                                        $estimatedSellingPriceContent = $estimatedSellingPriceResponse->json()[
-                                            "choices"
-                                        ][0]["message"]["content"];
-
-                                        // EIGHTH request: Ask Groq for a units sold per month
-                                        $unitsSoldPerMonthRequestBody = [
-                                            "messages" => [
-                                                [
-                                                    "role" => "user",
-                                                    "content" => "{$fullContent}. this is the estimated cost per unit {$EstimatedCostContent}. this is the estimated selling price {$estimatedSellingPriceContent}. Provide a estimated units sold per month, just give me the number in your response, don't give anything else, don't need comma separator",
-                                                ],
-                                            ],
-                                            "model" => "llama3-8b-8192",
-                                        ];
-
-                                        $unitsSoldPerMonthResponse = Http::withHeaders(
-                                            [
-                                                "Authorization" => "Bearer {$groqApiKey}",
-                                                "Content-Type" =>
-                                                    "application/json",
-                                            ]
-                                        )->post(
-                                            "https://api.groq.com/openai/v1/chat/completions",
-                                            $unitsSoldPerMonthRequestBody
-                                        );
-
-                                        // Check for success on the fourth request
-                                        if (
-                                            $unitsSoldPerMonthResponse->successful()
-                                        ) {
-                                            $unitsSoldPerMonthContent = $unitsSoldPerMonthResponse->json()[
-                                                "choices"
-                                            ][0]["message"]["content"];
-
-                                            // Ninth request: Ask Groq for a description
-                                            $descriptionRequestBody = [
-                                                "messages" => [
-                                                    [
-                                                        "role" => "user",
-                                                        "content" => "{$fullContent}. based on the content before this sentence write a description about the proposed product, about 100 words, dont add formatting write in a paragraph, keep as much information as possible from the previous content",
-                                                    ],
-                                                ],
-                                                "model" => "llama3-8b-8192",
-                                            ];
-
-                                            $descriptionResponse = Http::withHeaders(
-                                                [
-                                                    "Authorization" => "Bearer {$groqApiKey}",
-                                                    "Content-Type" =>
-                                                        "application/json",
-                                                ]
-                                            )->post(
-                                                "https://api.groq.com/openai/v1/chat/completions",
-                                                $descriptionRequestBody
-                                            );
-
-                                            // Check for success on the fourth request
-                                            if (
-                                                $descriptionResponse->successful()
-                                            ) {
-                                                $descriptionContent = $descriptionResponse->json()[
-                                                    "choices"
-                                                ][0]["message"]["content"];
-
-                                                // Return all responses (full response, short summary, target market, and product name)
-                                                return response()->json(
-                                                    [
-                                                        "fullResponse" => $fullContent,
-                                                        "shortResponse" => $shortContent,
-                                                        "targetMarket" => $targetMarketContent,
-                                                        "productName" => $productNameContent,
-                                                        "uniqueSellingPoint" => $UspContent,
-                                                        "estimatedCost" => $EstimatedCostContent,
-                                                        "estimatedSellingPrice" => $estimatedSellingPriceContent,
-                                                        "estimatedUnitsSoldPerMonth" => $unitsSoldPerMonthContent,
-                                                        "description" => $descriptionContent,
-                                                    ],
-                                                    200
-                                                );
-                                            } else {
-                                                return response()->json(
-                                                    [
-                                                        "message" =>
-                                                            "Error processing the USP",
-                                                    ],
-                                                    $descriptionResponse->status()
-                                                );
-                                            }
-                                        } else {
-                                            return response()->json(
-                                                [
-                                                    "message" =>
-                                                        "Error processing the USP",
-                                                ],
-                                                $unitsSoldPerMonthResponse->status()
-                                            );
-                                        }
-                                    } else {
-                                        return response()->json(
-                                            [
-                                                "message" =>
-                                                    "Error processing the USP",
-                                            ],
-                                            $estimatedSellingPriceResponse->status()
-                                        );
-                                    }
-                                } else {
-                                    return response()->json(
-                                        [
-                                            "message" =>
-                                                "Error processing the USP",
-                                        ],
-                                        $EstimatedCostResponse->status()
-                                    );
-                                }
-                            } else {
-                                return response()->json(
-                                    ["message" => "Error processing the USP"],
-                                    $UspResponse->status()
-                                );
-                            }
-                        } else {
-                            return response()->json(
-                                [
-                                    "message" =>
-                                        "Error processing the product name",
-                                ],
-                                $productNameResponse->status()
-                            );
-                        }
-                    } else {
-                        return response()->json(
-                            ["message" => "Error processing the target market"],
-                            $targetMarketResponse->status()
-                        );
-                    }
-                } else {
-                    return response()->json(
-                        ["message" => "Error processing the short summary"],
-                        $shortResponse->status()
-                    );
-                }
-            } else {
-                return response()->json(
-                    ["message" => "Error processing the full response"],
-                    $fullLengthResponse->status()
-                );
-            }
-        } catch (\Exception $e) {
-            return response()->json(
-                [
-                    "message" =>
-                        "Error processing the prompt: " . $e->getMessage(),
-                ],
-                500
-            );
+            "model" => $model,
+        ]);
+    
+        // Check if the request was successful and return the content
+        if ($response->successful()) {
+            return $response->json()["choices"][0]["message"]["content"];
+        } else {
+            // Log the error for debugging purposes (optional)
+            Log::error("Groq API Error: " . $response->status() . " - " . $response->body());
+            return null; // Return null to signal a failure
         }
     }
+    
 
     // Method to craft the final full-length prompt
     private function craftPrompt(
@@ -394,5 +145,71 @@ class PromptController extends Controller
             $categoryInfo .
             $productsList .
             "User prompt: {$userPrompt}";
+    }
+
+
+    public function handleAskAi(Request $request)
+    {
+        // Validate the incoming request
+        $request->validate([
+            "userInput" => "required",
+            "ideaData" => "required"
+        ]);
+
+        // Gather inputs from the request
+        $uniqueSellingPoint = 'this is unique selling point of the product:' . $request->input("ideaData.unique_selling_point");
+        $feasibilityScore = 'this is feasibility score of the product, out of 10:' . $request->input("ideaData.feasibility_score");
+        $estimatedUnitsSold ='this is the estimated units sold per month:' .  $request->input("ideaData.estimated_units_sold_per_month");
+        $estimatedSellingPrice = 'this is the estimated selling price of the product:' . $request->input("ideaData.estimated_selling_price");
+        $description = 'this is description of the product, you can answer alot of question from this description:' . $request->input("ideaData.description");
+        $estimatedCost = 'this is the estimated cost of the product:' . $request->input("ideaData.estimated_cost");
+        $category =  'this is the product category:' . $request->input("ideaData.category");
+        $brandName = 'this is the brand name:' . $request->input("ideaData.brand_name");
+        $productName = 'this is the product name:' . $request->input("ideaData.product_name");
+        $targetMarket = 'this is the target market:' . $request->input("ideaData.target_market");
+        $userInput = $request->input("userInput");
+
+        // Construct the user prompt
+        $userPrompt = $uniqueSellingPoint . 
+            $feasibilityScore . 
+            $estimatedUnitsSold . 
+            $estimatedSellingPrice . 
+            $description . 
+            $estimatedCost . 
+            $category . 
+            $brandName . 
+            $productName . 
+            $targetMarket .
+            ' based on the content before this sentence, answer the following question in a clear and concise manner, not more than 100 words write in a paragraph, even if it not a question, treat it like a question, and dont add filler words/sentences, straight to the point. the next sentence is the question/statement: ' . 
+            $userInput;
+
+        // Prepare the request body for Groq AI
+        $groqApiKey = env("GROQ_API_KEY");
+        $model = "llama3-8b-8192";
+
+        try {
+            // Send the user prompt to Groq AI
+            $responseContent = $this->makeGroqRequest($userPrompt, $groqApiKey, $model);
+
+            if ($responseContent) {
+                $logData = [
+                    'generated_product_idea_id' => $request->input("ideaData.generated_product_idea_id"), 
+                    'question' => $userInput,
+                    'answer' => $responseContent,
+                ];
+
+                AiMessageLog::create($logData);
+                // Return the AI response
+                return response()->json([
+                    "response" => $responseContent,
+                ], 200);
+            } else {
+                return response()->json(["message" => "Error processing the AI request"], 500);
+            }
+        } catch (\Exception $e) {
+            return response()->json([
+                "message" => "Error handling AI request: " . $e->getMessage(),
+            ], 500);
+        }
     }
 }
