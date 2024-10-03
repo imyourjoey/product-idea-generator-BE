@@ -90,7 +90,7 @@ class PromptController extends Controller
                         "messages" => [
                             [
                                 "role" => "user",
-                                "content" => "{$fullContent}. Based on the full proposal, describe the ideal target market for this product in a detailed but concise manner. Just a 1-5 word phrase (e.g., tech-savvy people, elderly).",
+                                "content" => "{$fullContent}. Based on the full proposal, describe the ideal target market for this product in a detailed but concise manner. Just a 1-5 word phrase (e.g., tech-savvy people, elderly). don't give filler text, don't need to be a sentence",
                             ],
                         ],
                         "model" => "llama3-8b-8192",
@@ -140,7 +140,7 @@ class PromptController extends Controller
                                 "messages" => [
                                     [
                                         "role" => "user",
-                                        "content" => "{$fullContent}. Provide unique selling point of the product",
+                                        "content" => "{$fullContent}. Provide unique selling point of the product, no filler sentences, straight to the point, do not prepend Unique Selling Point: in front", 
                                     ],
                                 ],
                                 "model" => "llama3-8b-8192",
@@ -165,7 +165,7 @@ class PromptController extends Controller
                                     "messages" => [
                                         [
                                             "role" => "user",
-                                            "content" => "{$fullContent}. Provide a estimated cost per unit in USD. just give the number, with 2 decimal places",
+                                            "content" => "{$fullContent}. Provide a estimated manufacturing cost per unit in USD. just give the number, with 2 decimal places, dont give currency symbol",
                                         ],
                                     ],
                                     "model" => "llama3-8b-8192",
@@ -190,7 +190,7 @@ class PromptController extends Controller
                                         "messages" => [
                                             [
                                                 "role" => "user",
-                                                "content" => "this is the estimated cost per unit {$EstimatedCostContent}. Provide a estimated selling price per unit in USD. just give the number, with 2 decimal places",
+                                                "content" => "this is the estimated manufacturing cost per unit {$EstimatedCostContent}. Provide a estimated selling price per unit in USD. just give the number, with 2 decimal places. make sure the selling price is higher than the manufacturing cost price, very very important, for profit",
                                             ],
                                         ],
                                         "model" => "llama3-8b-8192",
@@ -220,7 +220,7 @@ class PromptController extends Controller
                                             "messages" => [
                                                 [
                                                     "role" => "user",
-                                                    "content" => "{$fullContent}. this is the estimated cost per unit {$EstimatedCostContent}. this is the estimated selling price {$estimatedSellingPriceContent}. Provide a estimated units sold per month, just give me the number in your response, don't give anything else",
+                                                    "content" => "{$fullContent}. this is the estimated cost per unit {$EstimatedCostContent}. this is the estimated selling price {$estimatedSellingPriceContent}. Provide a estimated units sold per month, just give me the number in your response, don't give anything else, don't need comma separator",
                                                 ],
                                             ],
                                             "model" => "llama3-8b-8192",
@@ -250,7 +250,7 @@ class PromptController extends Controller
                                                 "messages" => [
                                                     [
                                                         "role" => "user",
-                                                        "content" => "{$fullContent}. based on the content before this sentence write a description about the proposed product, about less than 100 words, dont add formatting write in a paragraph",
+                                                        "content" => "{$fullContent}. based on the content before this sentence write a description about the proposed product, about 100 words, dont add formatting write in a paragraph, keep as much information as possible from the previous content",
                                                     ],
                                                 ],
                                                 "model" => "llama3-8b-8192",
