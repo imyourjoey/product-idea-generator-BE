@@ -3,24 +3,22 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use App\Models\GeneratedProductIdea;
-use Illuminate\Support\Facades\Auth;
 use App\Models\Brand;
-use Carbon\Carbon;
-
+use App\Models\GeneratedProductIdea;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class GeneratedProductIdeaController extends Controller
 {
     public function index()
     {
         $userId = Auth::id();
-    
+
         // Retrieve all product ideas for the current user only
         $ideas = GeneratedProductIdea::where('user_id', $userId)->get();
-    
+
         // Get the brand names and format timestamps for each idea
-        $ideas->transform(function ($idea) {    
+        $ideas->transform(function ($idea) {
             if (is_null($idea->brand_id)) {
                 $idea->brand_name = '-';
             } else {
@@ -28,14 +26,15 @@ class GeneratedProductIdeaController extends Controller
                 $brand = Brand::find($idea->brand_id);
                 $idea->brand_name = $brand ? $brand->name : '-';
             }
-            
+
             return $idea;
         });
-    
+
         // Return the ideas as a JSON response
         return response()->json($ideas);
     }
-        public function store(Request $request)
+
+    public function store(Request $request)
     {
         $data = $request->validate([
             'product_name' => 'required|string|max:255',
@@ -49,7 +48,7 @@ class GeneratedProductIdeaController extends Controller
             'brand_id' => 'nullable|exists:brands,id',
             'user_id' => 'required|exists:users,id',
             'feasibility_score' => 'required|numeric',
-            'category' => 'required|string'
+            'category' => 'required|string',
         ]);
 
         $idea = GeneratedProductIdea::create($data);

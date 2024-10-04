@@ -1,12 +1,12 @@
 <?php
 
 namespace App\Http\Controllers\API;
-use Illuminate\Support\Facades\Auth;
+
+use App\Http\Controllers\API\BaseController as BaseController;
 use App\Models\Brand;
 use App\Models\Product;
-
 use Illuminate\Http\Request;
-use App\Http\Controllers\API\BaseController as BaseController;
+use Illuminate\Support\Facades\Auth;
 
 class BrandController extends BaseController
 {
@@ -17,10 +17,10 @@ class BrandController extends BaseController
     {
         // Get the currently authenticated user
         $user = Auth::user();
-    
+
         // Retrieve brands belonging to the authenticated user
         $brands = $user->brands; // This will use the defined relationship
-    
+
         // Map the brands to include only id and name
         $brandData = $brands->map(function ($brand) {
             return [
@@ -28,7 +28,7 @@ class BrandController extends BaseController
                 'name' => $brand->name,
             ];
         });
-    
+
         // Return a response with status, message, and the brand data
         return response()->json([
             'status' => 'success',
@@ -58,7 +58,7 @@ class BrandController extends BaseController
     //     $brand = Brand::create([
     //         'name' => $request->name,
     //         'description' => $request->description,
-    //         'user_id' => Auth::id(), 
+    //         'user_id' => Auth::id(),
     //     ]);
 
     //     return response()->json([
@@ -69,39 +69,39 @@ class BrandController extends BaseController
     // }
     public function store(Request $request)
     {
-    // Validate incoming request
-    $request->validate([
-        'name' => 'required|string|max:255',
-        'description' => 'nullable|string',
-        'products' => 'array', // Validate that products is an array
-        'products.*.name' => 'required|string|max:255', // Validate each product's name
-        'products.*.description' => 'nullable|string', // Validate each product's description
-    ]);
+        // Validate incoming request
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
+            'products' => 'array', // Validate that products is an array
+            'products.*.name' => 'required|string|max:255', // Validate each product's name
+            'products.*.description' => 'nullable|string', // Validate each product's description
+        ]);
 
-    // Create the brand
-    $brand = Brand::create([
-        'name' => $request->name,
-        'description' => $request->description,
-        'user_id' => Auth::id(),
-    ]);
+        // Create the brand
+        $brand = Brand::create([
+            'name' => $request->name,
+            'description' => $request->description,
+            'user_id' => Auth::id(),
+        ]);
 
-    // If products are provided, create them and associate with the brand
-    if (!empty($request->products)) {
-        foreach ($request->products as $productData) {
-            // Create each product and associate it with the brand
-            Product::create([
-                'name' => $productData['name'],
-                'description' => $productData['description'] ?? null,
-                'brand_id' => $brand->id, // Associate the product with the created brand
-            ]);
+        // If products are provided, create them and associate with the brand
+        if (! empty($request->products)) {
+            foreach ($request->products as $productData) {
+                // Create each product and associate it with the brand
+                Product::create([
+                    'name' => $productData['name'],
+                    'description' => $productData['description'] ?? null,
+                    'brand_id' => $brand->id, // Associate the product with the created brand
+                ]);
+            }
         }
-    }
 
-    return response()->json([
-        'status' => 'success',
-        'message' => 'Brand created successfully.',
-        'brand' => $brand,
-    ], 201);
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Brand created successfully.',
+            'brand' => $brand,
+        ], 201);
     }
 
     /**

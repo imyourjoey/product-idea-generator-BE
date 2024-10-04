@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers\API;
 
-use Illuminate\Http\Request;
 use App\Http\Controllers\API\BaseController as BaseController;
-use App\Models\Product;
-use App\Models\Brand;
-use Validator;
 use App\Http\Resources\ProductResource;
+use App\Models\Brand;
+use App\Models\Product;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Validator;
 
 class ProductController extends BaseController
 {
@@ -21,16 +21,16 @@ class ProductController extends BaseController
     {
         // Get brand_id from the request body
         $brandId = $request->input('brand_id');
-        
+
         if ($brandId) {
             // Retrieve the brand with its products
             $brand = Brand::with('products')->find($brandId);
-    
+
             // Return error if brand not found
-            if (!$brand) {
+            if (! $brand) {
                 return $this->sendError('Brand not found.');
             }
-    
+
             // Response with brand details and products
             return $this->sendResponse([
                 'brand' => [
@@ -38,24 +38,22 @@ class ProductController extends BaseController
                     'name' => $brand->name,
                     'description' => $brand->description,
                 ],
-                'products' => ProductResource::collection($brand->products)
+                'products' => ProductResource::collection($brand->products),
             ], 'Products retrieved successfully.');
-    
+
         } else {
             // Optionally, return all products without filtering by brand
             $products = Product::with('brand')->get();
-    
+
             return $this->sendResponse([
-                'products' => ProductResource::collection($products)
+                'products' => ProductResource::collection($products),
             ], 'All products retrieved successfully.');
         }
     }
-    
 
     /**
      * Store a newly created resource in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
     public function store(Request $request): JsonResponse
@@ -65,7 +63,7 @@ class ProductController extends BaseController
         $validator = Validator::make($input, [
             'name' => 'required',
             'description' => 'required', // Updated field name
-            'brand_id' => 'nullable|exists:brands,id' // Added brand_id validation
+            'brand_id' => 'nullable|exists:brands,id', // Added brand_id validation
         ]);
 
         if ($validator->fails()) {
@@ -97,8 +95,6 @@ class ProductController extends BaseController
     /**
      * Update the specified resource in storage.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  Product  $product
      * @return \Illuminate\Http\Response
      */
     public function update(Request $request, Product $product): JsonResponse
@@ -107,7 +103,7 @@ class ProductController extends BaseController
 
         $validator = Validator::make($input, [
             'name' => 'required',
-            'description' => 'required', // Updated field name 
+            'description' => 'required', // Updated field name
         ]);
 
         if ($validator->fails()) {
@@ -115,7 +111,7 @@ class ProductController extends BaseController
         }
 
         $product->name = $input['name'];
-        $product->description = $input['description']; 
+        $product->description = $input['description'];
         $product->save();
 
         return $this->sendResponse(new ProductResource($product), 'Product updated successfully.');
@@ -124,7 +120,6 @@ class ProductController extends BaseController
     /**
      * Remove the specified resource from storage.
      *
-     * @param  Product  $product
      * @return \Illuminate\Http\Response
      */
     public function destroy(Product $product): JsonResponse

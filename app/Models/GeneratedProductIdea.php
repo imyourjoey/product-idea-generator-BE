@@ -15,7 +15,7 @@ class GeneratedProductIdea extends Model
      * @var array
      */
     protected $fillable = [
-        'product_name', 'description', 'unique_selling_point', 'target_market', 'estimated_cost', 'estimated_selling_price', 'estimated_units_sold_per_month', 'brand_id', 'user_id', 'feasibility_score', 'category'
+        'product_name', 'description', 'unique_selling_point', 'target_market', 'estimated_cost', 'estimated_selling_price', 'estimated_units_sold_per_month', 'brand_id', 'user_id', 'feasibility_score', 'category',
     ];
 
     /**

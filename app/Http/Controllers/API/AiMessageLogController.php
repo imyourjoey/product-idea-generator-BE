@@ -3,9 +3,8 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\AiMessageLog;
-
+use Illuminate\Http\Request;
 
 class AiMessageLogController extends Controller
 {
@@ -25,8 +24,8 @@ class AiMessageLogController extends Controller
                     'created_at' => $log->created_at,
 
                 ];
-            });;
-        
+            });
+
         // Return the logs as a JSON response
         return response()->json($logs);
     }
@@ -42,6 +41,7 @@ class AiMessageLogController extends Controller
 
         // Create a new AI message log
         $log = AiMessageLog::create($request->all());
+
         return response()->json($log, 201);
     }
 
@@ -49,6 +49,7 @@ class AiMessageLogController extends Controller
     {
         // Get a specific AI message log
         $log = AiMessageLog::with('generatedProductIdea')->findOrFail($id);
+
         return response()->json($log);
     }
 
@@ -56,13 +57,14 @@ class AiMessageLogController extends Controller
     {
         // Validate request
         $request->validate([
-        'question' => 'sometimes|required|string',
+            'question' => 'sometimes|required|string',
             'answer' => 'sometimes|required|string',
         ]);
 
         // Update the AI message log
         $log = AiMessageLog::findOrFail($id);
         $log->update($request->all());
+
         return response()->json($log);
     }
 
@@ -71,6 +73,7 @@ class AiMessageLogController extends Controller
         // Delete the AI message log
         $log = AiMessageLog::findOrFail($id);
         $log->delete();
+
         return response()->json(null, 204);
     }
 }
