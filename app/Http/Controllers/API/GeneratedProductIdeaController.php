@@ -15,7 +15,7 @@ class GeneratedProductIdeaController extends Controller
         $userId = Auth::id();
 
         // Retrieve all product ideas for the current user only
-        $ideas = GeneratedProductIdea::where('user_id', $userId)->get();
+        $ideas = GeneratedProductIdea::where('user_id', $userId)->orderBy('created_at', 'desc')->get();
 
         // Get the brand names and format timestamps for each idea
         $ideas->transform(function ($idea) {

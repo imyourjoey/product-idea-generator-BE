@@ -45,14 +45,14 @@ class PromptController extends Controller
 
             // If first request was successful, proceed with further requests
             if ($fullContent) {
-                $shortContent = $this->makeGroqRequest("{$fullContent}. Based on the previous content, describe the new proposed product's appearance, name, and key characteristics in a concise 6-7 word sentence, excluding any filler words.", $groqApiKey, $model);
-                $targetMarketContent = $this->makeGroqRequest("{$fullContent}. Based on the full proposal, describe the ideal target market for this product in a detailed but concise manner. Just a 1-5 word phrase (e.g., tech-savvy people, elderly). don't give filler text, don't need to be a sentence", $groqApiKey, $model);
-                $productNameContent = $this->makeGroqRequest("{$fullContent}. based on the previous content, find the product name. Return only the name.", $groqApiKey, $model);
-                $UspContent = $this->makeGroqRequest("{$fullContent}. Provide unique selling point of the product, no filler sentences, straight to the point, do not prepend Unique Selling Point: in front", $groqApiKey, $model);
-                $EstimatedCostContent = $this->makeGroqRequest("{$fullContent}. Provide a estimated manufacturing cost per unit in USD. just give the number, with 2 decimal places, dont give currency symbol", $groqApiKey, $model);
-                $estimatedSellingPriceContent = $this->makeGroqRequest("this is the estimated manufacturing cost per unit {$EstimatedCostContent}. Provide a estimated selling price per unit in USD. just give the number, with 2 decimal places. make sure the selling price is higher than the manufacturing cost price, very very important, for profit", $groqApiKey, $model);
-                $unitsSoldPerMonthContent = $this->makeGroqRequest("{$fullContent}. this is the estimated cost per unit {$EstimatedCostContent}. this is the estimated selling price {$estimatedSellingPriceContent}. Provide a estimated units sold per month, just give me the number in your response, don't give anything else, don't need comma separator", $groqApiKey, $model);
-                $descriptionContent = $this->makeGroqRequest("{$fullContent}. based on the content before this sentence write a description about the proposed product, about 100 words, dont add formatting write in a paragraph, keep as much information as possible from the previous content", $groqApiKey, $model);
+                $shortContent = $this->makeGroqRequest("{$fullContent}. Based on the previous content, describe the new proposed product's appearance, name, and key characteristics in a concise 6-7 word sentence, excluding any filler words, straight to your response", $groqApiKey, $model);
+                $targetMarketContent = $this->makeGroqRequest("{$fullContent}. Based on the full proposal, describe the ideal target market for this product in a detailed but concise manner. Just a 1-5 word phrase (e.g., tech-savvy people, elderly). don't give filler text, don't need to be a sentence, go straight to your response", $groqApiKey, $model);
+                $productNameContent = $this->makeGroqRequest("{$fullContent}. based on the previous content, find the product name. Return only the name in your response.", $groqApiKey, $model);
+                $UspContent = $this->makeGroqRequest("{$fullContent}. Provide unique selling point of the product, no filler sentences, straight to the point, do not prepend Unique Selling Point: in front, return only the unique selling point in your response", $groqApiKey, $model);
+                $EstimatedCostContent = $this->makeGroqRequest("{$fullContent}. Provide a estimated manufacturing cost per unit in USD. just give the number, with 2 decimal places, don't give currency symbol, return only the number in your response", $groqApiKey, $model);
+                $estimatedSellingPriceContent = $this->makeGroqRequest("this is the estimated manufacturing cost per unit {$EstimatedCostContent}. Provide a estimated selling price per unit in USD. just return the price in your response, with 2 decimal places. make sure the selling price should always be higher than the estimated manufacturing cost price, very very important", $groqApiKey, $model);
+                $unitsSoldPerMonthContent = $this->makeGroqRequest("{$fullContent}. this is the estimated cost per unit {$EstimatedCostContent}. this is the estimated selling price {$estimatedSellingPriceContent}. Provide a estimated units sold per month, just give me the estimated units sold in your response, don't give anything else, do not add comma separator, just numeric", $groqApiKey, $model);
+                $descriptionContent = $this->makeGroqRequest("{$fullContent}. based on the content before this sentence write a description about the proposed product, about 100 words, dont add formatting write in a paragraph, keep as much information as possible from the previous content, return only the description in your response, without preface", $groqApiKey, $model);
 
                 // Create a new GeneratedProductIdea entry
                 $productIdea = GeneratedProductIdea::create([
@@ -177,7 +177,7 @@ class PromptController extends Controller
             $brandName.
             $productName.
             $targetMarket.
-            ' based on the content before this sentence, answer the following question in a clear and concise manner, not more than 100 words write in a paragraph, even if it not a question, treat it like a question, and dont add filler words/sentences, straight to the point. the next sentence is the question/statement: '.
+            ' based on the content before this sentence, answer the following question in a clear and concise manner, not more than 100 words write in a paragraph, even if it not a question, treat it like a question, and do not add filler words/sentences, straight to the point. the next sentence is the question/statement: '.
             $userInput;
 
         // Prepare the request body for Groq AI

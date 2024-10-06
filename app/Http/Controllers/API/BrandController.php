@@ -19,7 +19,7 @@ class BrandController extends BaseController
         $user = Auth::user();
 
         // Retrieve brands belonging to the authenticated user
-        $brands = $user->brands; // This will use the defined relationship
+        $brands = $user->brands()->orderBy('created_at', 'desc')->get();; // This will use the defined relationship
 
         // Map the brands to include only id and name
         $brandData = $brands->map(function ($brand) {
